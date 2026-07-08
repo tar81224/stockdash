@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0d1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="StockDash">
+<title>StockDash</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  :root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#c9d1d9;--text-dim:#8b949e;--green:#3fb950;--red:#f85149;--blue:#1f6feb;--yellow:#e3b341;--safe-top:env(safe-area-inset-top);--safe-bottom:env(safe-area-inset-bottom)}
+  html,body{height:100%;overflow:hidden;touch-action:manipulation}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+  #app{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+  .app-header{flex-shrink:0;padding:max(12px,var(--safe-top)) 16px 12px;background:linear-gradient(180deg,#161b22 0%,#0d1117 100%);border-bottom:1px solid var(--border);z-index:100;display:flex;align-items:center;justify-content:space-between}
+  .app-header h1{font-size:20px;font-weight:700;color:#f0f6fc;letter-spacing:-0.3px}
+  .app-header .time{font-size:11px;color:var(--text-dim);margin-top:2px}
+  .app-header .status-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .scroll-area{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:0 12px 100px}
+  .scroll-area::-webkit-scrollbar{display:none}
+  .panel{display:none}
+  .panel.active{display:block}
+  .market-scroll{display:flex;gap:8px;padding:12px 0;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+  .market-scroll::-webkit-scrollbar{display:none}
+  .market-chip{flex-shrink:0;scroll-snap-align:start;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 16px;min-width:130px}
+  .market-chip .label{font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px}
+  .market-chip .value{font-size:18px;font-weight:700;color:#f0f6fc;margin-top:2px}
+  .market-chip .change{font-size:12px;margin-top:2px;font-weight:500}
+  .up{color:var(--green)}.down{color:var(--red)}.neutral{color:var(--text-dim)}
+  .stock-card{background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:10px;overflow:hidden}
+  .stock-top{padding:14px 16px;display:flex;justify-content:space-between;align-items:center}
+  .stock-left{display:flex;align-items:center;gap:12px}
+  .stock-logo{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff}
+  .stock-name .ticker{font-size:16px;font-weight:700;color:#f0f6fc}
+  .stock-name .sub{font-size:11px;color:var(--text-dim)}
+  .stock-right{text-align:right}
+  .stock-right .price{font-size:22px;font-weight:700;color:#f0f6fc}
+  .stock-right .pct{font-size:13px;font-weight:600}
+  .stock-chart{height:140px;padding:0 12px}
+  .stock-chart canvas{width:100%;height:100%}
+  .stock-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#21262d}
+  .stock-metrics > div{background:var(--card);padding:10px;text-align:center}
+  .stock-metrics .m-label{font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px}
+  .stock-metrics .m-value{font-size:14px;font-weight:600;color:#f0f6fc;margin-top:2px}
+  .range-wrap{padding:10px 16px}
+  .range-top{display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-bottom:4px}
+  .range-bar{height:5px;background:#21262d;border-radius:3px;overflow:hidden}
+  .range-fill{height:100%;border-radius:3px;transition:width .5s ease}
+  .range-bot{display:flex;justify-content:space-between;font-size:10px;color:#6e7681;margin-top:3px}
+  .stock-footer{padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #21262d}
+  .rec-badge{font-size:10px;padding:3px 10px;border-radius:6px;font-weight:600;text-transform:uppercase}
+  .rec-strong-buy{background:rgba(35,134,54,.2);color:var(--green)}
+  .rec-buy{background:rgba(47,129,247,.2);color:#58a6ff}
+  .rec-hold{background:rgba(210,153,34,.2);color:var(--yellow)}
+  .rec-sell{background:rgba(248,81,73,.2);color:var(--red)}
+  .remove-btn{background:#da3633;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer}
+  .remove-btn:active{background:#f85149}
+  .news-item{padding:14px 16px;border-bottom:1px solid #21262d;position:relative;padding-left:20px}
+  .news-item:last-child{border-bottom:none}
+  .news-title{font-size:14px;color:var(--text);line-height:1.45;font-weight:500}
+  .news-meta{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center}
+  .news-tag{background:#21262d;padding:2px 8px;border-radius:4px;font-size:10px;color:var(--text-dim)}
+  .news-src{font-size:11px;color:#6e7681}
+  .news-impact{font-size:11px;font-weight:500}
+  .screener-row{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid #21262d;gap:10px;cursor:pointer}
+  .screener-row:active{background:#1c2128}
+  .scr-logo{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+  .scr-info{flex:1;min-width:0}
+  .scr-name{font-size:14px;font-weight:600;color:#f0f6fc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .scr-sub{font-size:11px;color:var(--text-dim)}
+  .scr-price{text-align:right;flex-shrink:0}
+  .scr-price .p{font-size:16px;font-weight:700;color:#f0f6fc}
+  .scr-price .c{font-size:12px;font-weight:500}
+  .alert-row{display:flex;align-items:flex-start;padding:14px 16px;border-bottom:1px solid #21262d;gap:12px}
+  .alert-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+  .alert-info{flex:1}
+  .alert-title{font-size:14px;font-weight:500;color:#f0f6fc}
+  .alert-desc{font-size:12px;color:var(--text-dim);margin-top:2px;line-height:1.4}
+  .alert-time{font-size:10px;color:#6e7681;flex-shrink:0;white-space:nowrap}
+  .bottom-nav{flex-shrink:0;display:flex;justify-content:space-around;align-items:center;background:linear-gradient(0deg,#161b22 0%,#0d1117 100%);border-top:1px solid var(--border);padding:8px 0 max(8px,var(--safe-bottom));position:relative;z-index:100}
+  .nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 0;background:none;border:none;color:var(--text-dim);font-size:10px;cursor:pointer;transition:color .15s}
+  .nav-btn.active{color:var(--blue)}
+  .nav-btn .icon{font-size:22px;line-height:1}
+  .fab{position:fixed;bottom:max(80px,var(--safe-bottom,80px));right:16px;width:56px;height:56px;border-radius:50%;background:var(--blue);color:#fff;border:none;font-size:28px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(31,111,235,.4);z-index:99;cursor:pointer}
+  .fab:active{transform:scale(.95)}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:flex-end}
+  .modal.active{display:flex}
+  .modal-sheet{background:var(--card);border-radius:20px 20px 0 0;padding:20px 16px max(20px,var(--safe-bottom));width:100%;transform:translateY(100%);transition:transform .3s ease}
+  .modal.active .modal-sheet{transform:translateY(0)}
+  .modal-handle{width:36px;height:4px;background:#484f58;border-radius:2px;margin:0 auto 16px}
+  .modal-title{font-size:18px;font-weight:700;color:#f0f6fc;margin-bottom:16px}
+  .modal-input{width:100%;background:#21262d;border:1px solid var(--border);border-radius:12px;padding:14px 16px;color:#f0f6fc;font-size:16px;outline:none;margin-bottom:12px}
+  .modal-input:focus{border-color:var(--blue)}
+  .modal-btn{width:100%;background:var(--blue);color:#fff;border:none;border-radius:12px;padding:14px;font-size:16px;font-weight:600;cursor:pointer}
+  .modal-btn:active{background:#388bfd}
+  .swipe-hint{text-align:center;padding:8px;color:#6e7681;font-size:11px}
+  .sent-row{display:flex;gap:8px;padding:12px 0}
+  .sent-pill{flex:1;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center}
+  .sent-pill .num{font-size:20px;font-weight:700}
+  .sent-pill .lab{font-size:10px;color:var(--text-dim);text-transform:uppercase;margin-top:2px}
+  .refresh-btn{background:#21262d;border:1px solid var(--border);border-radius:10px;padding:10px 16px;color:var(--text);font-size:13px;display:flex;align-items:center;gap:8px;margin:12px 0;cursor:pointer;width:100%;justify-content:center}
+  .refresh-btn:active{background:#1c2128}
+  .refresh-btn.spinning .spin{animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .empty-state{text-align:center;padding:40px 20px;color:#6e7681}
+  .empty-state .icon{font-size:40px;margin-bottom:10px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="app-header">
+    <div><h1>StockDash</h1><div class="time" id="headerTime">Live Market</div></div>
+    <div class="status-dot"></div>
+  </div>
+  <div class="scroll-area" id="scrollArea">
+    <div class="panel active" id="panel-portfolio">
+      <div class="market-scroll" id="marketScroll"></div>
+      <div id="portfolioCards"></div>
+      <div class="swipe-hint">Pull down to refresh data</div>
+    </div>
+    <div class="panel" id="panel-screener">
+      <div style="padding:12px 4px">
+        <input type="text" class="modal-input" style="margin-bottom:8px;font-size:14px;padding:12px" placeholder="Filter stocks..." id="screenerFilter">
+      </div>
+      <div id="screenerList"></div>
+    </div>
+    <div class="panel" id="panel-news">
+      <div style="padding:12px 4px">
+        <button class="refresh-btn" id="refreshNewsBtn">
+          <span class="spin" id="newsSpin">&#x1F504;</span> Refresh News
+        </button>
+        <div class="sent-row" id="sentimentRow"></div>
+      </div>
+      <div id="newsList"></div>
+    </div>
+    <div class="panel" id="panel-alerts">
+      <div style="padding:12px 4px">
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:10px">
+          <div style="padding:14px 16px;border-bottom:1px solid #21262d;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:15px;font-weight:600;color:#f0f6fc">&#x1F514; Active Alerts</span>
+            <span style="font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600;background:rgba(31,111,235,.2);color:var(--blue)" id="alertCount">6</span>
+          </div>
+          <div id="alertsList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <button class="fab" id="fabBtn">+</button>
+  <div class="bottom-nav">
+    <button class="nav-btn active" data-panel="portfolio"><span class="icon">&#x1F4C1;</span><span>Portfolio</span></button>
+    <button class="nav-btn" data-panel="screener"><span class="icon">&#x1F50D;</span><span>Screener</span></button>
+    <button class="nav-btn" data-panel="news"><span class="icon">&#x1F4F0;</span><span>News</span></button>
+    <button class="nav-btn" data-panel="alerts"><span class="icon">&#x1F514;</span><span>Alerts</span></button>
+  </div>
+  <div class="modal" id="addModal">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Add Stock</div>
+      <input type="text" class="modal-input" id="addTickerInput" placeholder="Enter ticker (AAPL, NVDA...)">
+      <button class="modal-btn" id="confirmAddBtn">Add to Portfolio</button>
+    </div>
+  </div>
+</div>
+<script>
+// ===== DATA =====
+console.log("[StockDash] App initializing...");
+
+var stockData = {
+  'AAPL': {
+    ticker: 'AAPL', name: 'Apple Inc.', price: 310.66, change_pct: -0.64,
+    market_cap: '$4.56T', pe_trailing: 37.66, pe_forward: 32.33, rsi: 59.5,
+    ma20: 295.06, ma50: 271.42, volume: '42.1M', avg_volume: '54.0M', beta: 1.10,
+    recommendation: 'Buy', target_mean: 315.57, target_high: 400, target_low: 215,
+    analyst_count: 42, profit_margin: 27.15, revenue_growth: 16.6,
+    debt_to_equity: 79.55, roe: 141.47,
+    '52w_low': 201.50, '52w_high': 317.40, '52w_position': 87.5,
+    '6m_change': 20.15, dividend_yield: 0.35,
+    sector: 'Technology', industry: 'Consumer Electronics',
+    history: [300.56,300.89,301.77,302.57,301.48,299.73,297.06,288.24,289.19,289.89,289.58,296.94,299.79,297.96,299.80,301.00,311.51,310.98,317.98,317.40,319.60,316.37,315.43,317.25,303.49,297.54,305.64,306.11,302.34,306.34,307.93,313.89,315.98,314.70,305.94,306.48,305.51,304.28,302.05,299.22,301.64,302.59,302.57,297.52,291.89,294.59,296.00,291.71,290.73,289.76,292.89,294.57,296.95,298.38,299.19,300.43,302.35,304.50,306.73,308.89]
+  },
+  'NVDA': {
+    ticker: 'NVDA', name: 'NVIDIA Corp', price: 196.93, change_pct: 0.71,
+    market_cap: '$4.77T', pe_trailing: 30.16, pe_forward: 15.43, rsi: 33.5,
+    ma20: 209.60, ma50: 191.26, volume: '122.6M', avg_volume: '158.8M', beta: 2.21,
+    recommendation: 'Strong Buy', target_mean: 301.62, target_high: 500, target_low: 180,
+    analyst_count: 58, profit_margin: 62.97, revenue_growth: 85.2,
+    debt_to_equity: 6.56, roe: 114.29,
+    '52w_low': 158.39, '52w_high': 236.54, '52w_position': 52.3,
+    '6m_change': 6.43, dividend_yield: 0.51,
+    sector: 'Technology', industry: 'Semiconductors',
+    history: [185.03,184.85,184.93,185.80,183.13,187.04,186.22,178.06,183.31,184.83,187.66,186.46,188.51,191.51,192.50,191.12,185.60,180.33,174.18,171.87,185.40,190.03,188.53,190.04,186.93,182.80,184.96,187.97,187.89,189.81,191.54,192.84,195.55,184.88,177.18,182.47,180.04,183.03,183.33,177.81,182.64,184.76,186.03,183.14,180.25,183.22,181.93,180.40,178.56,172.70,174.50,176.20,178.80,181.30,183.90,186.40,188.50,190.20,192.80,195.10]
+  },
+  'TSLA': {
+    ticker: 'TSLA', name: 'Tesla, Inc.', price: 402.90, change_pct: -4.02,
+    market_cap: '$1.51T', pe_trailing: 383.71, pe_forward: 157.67, rsi: 47.7,
+    ma20: 407.65, ma50: 418.48, volume: '38.0M', avg_volume: '54.6M', beta: 1.80,
+    recommendation: 'Buy', target_mean: 424.01, target_high: 600, target_low: 125,
+    analyst_count: 41, profit_margin: 3.95, revenue_growth: 15.8,
+    debt_to_equity: 18.74, roe: 4.90,
+    '52w_low': 293.55, '52w_high': 498.83, '52w_position': 45.8,
+    '6m_change': -7.55, dividend_yield: 0,
+    sector: 'Consumer Cyclical', industry: 'Auto Manufacturers',
+    history: [435.80,445.01,448.96,447.20,439.20,438.57,437.50,419.25,431.44,449.36,449.06,435.20,430.90,431.46,416.56,430.41,421.81,421.96,406.01,397.21,411.11,417.32,425.21,428.27,417.07,417.44,410.63,411.32,411.71,411.82,399.83,409.38,417.40,408.58,402.51,403.32,392.43,405.94,405.55,396.73,398.68,399.24,407.82,395.01,391.20,395.56,399.27,392.78,380.30,367.96,370.50,373.20,376.80,380.50,384.20,388.50,392.80,397.50,400.20,402.90]
+  }
+};
+
+var newsData = [
+  {title: 'Dow Jumps 600 Points to Record High as Tech Stocks Sell Off', source: 'Investopedia', time: 'Jul 2', impact: 'Mixed rotation', sentiment: 'neutral', tickers: ['AAPL','NVDA','TSLA']},
+  {title: 'Tesla Deliveries Top 480K in Q2, Beating Expectations', source: 'Investopedia', time: 'Jul 2', impact: 'Positive deliveries', sentiment: 'positive', tickers: ['TSLA']},
+  {title: 'NVIDIA Down 16% from May Highs; Analysts Call It "Screaming Buy"', source: 'Investopedia', time: 'Jul 2', impact: 'Oversold bounce', sentiment: 'positive', tickers: ['NVDA']},
+  {title: 'June Jobs Report: Only 57K Added, Below 117K Estimate', source: 'Yahoo Finance', time: 'Jul 2', impact: 'Fed pause bullish', sentiment: 'positive', tickers: ['AAPL','NVDA','TSLA']},
+  {title: 'AI Chip Stocks Pull Back: Broadcom Down 25%', source: 'Investopedia', time: 'Jul 2', impact: 'Sector correction', sentiment: 'negative', tickers: ['NVDA']},
+  {title: 'Samsung Out-Earned Apple and Nvidia, Stock Tanked 7%', source: '247 Wall St', time: 'Jul 7', impact: 'Competition', sentiment: 'negative', tickers: ['AAPL','NVDA']},
+  {title: 'Broadcom Extends Apple Chip Deal Through 2031', source: 'The Street', time: 'Jul 7', impact: 'Supply stability', sentiment: 'positive', tickers: ['AAPL']},
+  {title: 'Apple Sales Weathering Hardware Price Increases', source: 'Investors.com', time: 'Jul 7', impact: 'Pricing power', sentiment: 'positive', tickers: ['AAPL']},
+  {title: 'JPMorgan: Tesla-SpaceX Merger Looks Coherent', source: 'StockTwits', time: 'Jul 7', impact: 'M&A speculation', sentiment: 'positive', tickers: ['TSLA']},
+  {title: 'Tesla New SUV Could Be Smartest Profit Play', source: 'The Street', time: 'Jul 7', impact: 'Product expansion', sentiment: 'positive', tickers: ['TSLA']},
+  {title: 'Gerber: Chip Sell-Off "a Gift" for Long-Term Investors', source: 'Yahoo Finance', time: 'Jul 7', impact: 'Oversold bounce', sentiment: 'positive', tickers: ['NVDA']},
+  {title: 'SpaceX Tokenized Equity Volume Hits Record $3.86B', source: 'CryptoProwl', time: 'Jul 7', impact: 'Private market', sentiment: 'neutral', tickers: ['TSLA']},
+  {title: 'Foldable iPhone Delayed to Q4 2026, Says Kuo', source: 'Yahoo Finance', time: 'Jul 7', impact: 'Supply delay', sentiment: 'negative', tickers: ['AAPL']},
+  {title: 'Luxshare Raises $3.1B in HK Biggest IPO', source: 'Yahoo Finance', time: 'Jul 7', impact: 'Ecosystem health', sentiment: 'positive', tickers: ['AAPL']},
+  {title: 'When It Comes to Ratings, Tesla Is No SpaceX', source: "Barron's", time: 'Jul 7', impact: 'Mixed coverage', sentiment: 'neutral', tickers: ['TSLA']},
+  {title: 'RBC Raises Tesla Target to $500 on Merger Thesis', source: 'Yahoo Finance', time: 'Jul 7', impact: 'Target raise', sentiment: 'positive', tickers: ['TSLA']}
+];
+
+var screenerUniverse = [
+  {ticker: 'AAPL', name: 'Apple Inc.', price: 310.66, change: -0.64, mc: '$4.56T', pe: 37.7, rsi: 59.5, rec: 'Buy', target: 315.6, sector: 'Technology'},
+  {ticker: 'NVDA', name: 'NVIDIA Corp', price: 196.93, change: 0.71, mc: '$4.77T', pe: 30.2, rsi: 33.5, rec: 'Strong Buy', target: 301.6, sector: 'Technology'},
+  {ticker: 'TSLA', name: 'Tesla, Inc.', price: 402.90, change: -4.02, mc: '$1.51T', pe: 383.7, rsi: 47.7, rec: 'Buy', target: 424.0, sector: 'Consumer Cyclical'},
+  {ticker: 'MSFT', name: 'Microsoft', price: 485.20, change: 0.85, mc: '$3.60T', pe: 35.1, rsi: 55.2, rec: 'Strong Buy', target: 520.0, sector: 'Technology'},
+  {ticker: 'AMZN', name: 'Amazon.com', price: 198.40, change: -1.20, mc: '$2.07T', pe: 42.3, rsi: 48.1, rec: 'Buy', target: 225.0, sector: 'Consumer Cyclical'},
+  {ticker: 'GOOGL', name: 'Alphabet Inc.', price: 178.50, change: 0.45, mc: '$2.20T', pe: 24.8, rsi: 51.3, rec: 'Strong Buy', target: 210.0, sector: 'Communication'},
+  {ticker: 'META', name: 'Meta Platforms', price: 612.30, change: -2.10, mc: '$1.55T', pe: 26.5, rsi: 62.0, rec: 'Buy', target: 650.0, sector: 'Communication'},
+  {ticker: 'JPM', name: 'JPMorgan Chase', price: 245.80, change: 1.30, mc: '$710B', pe: 12.4, rsi: 58.7, rec: 'Buy', target: 260.0, sector: 'Financial'},
+  {ticker: 'JNJ', name: 'Johnson & Johnson', price: 162.40, change: 0.20, mc: '$390B', pe: 15.2, rsi: 45.3, rec: 'Hold', target: 170.0, sector: 'Healthcare'},
+  {ticker: 'UNH', name: 'UnitedHealth', price: 528.90, change: -0.80, mc: '$490B', pe: 19.8, rsi: 42.1, rec: 'Buy', target: 580.0, sector: 'Healthcare'}
+];
+
+var portfolio = ['AAPL', 'NVDA', 'TSLA'];
+var currentNews = newsData;
+var currentPanel = 'portfolio';
+
+// ===== UTILS =====
+function getLogoColor(t) {
+  var colors = {'AAPL':'#555','NVDA':'#76B900','TSLA':'#E82127','MSFT':'#00A4EF','AMZN':'#FF9900','GOOGL':'#4285F4','META':'#0668E1','JPM':'#003087','JNJ':'#C41230','UNH':'#002677'};
+  return colors[t] || '#1f6feb';
+}
+
+function getRecClass(r) {
+  var map = {'Strong Buy':'rec-strong-buy','Buy':'rec-buy','Hold':'rec-hold','Sell':'rec-sell'};
+  return map[r] || 'rec-hold';
+}
+
+function drawChart(canvasId, data, color) {
+  var cvs = document.getElementById(canvasId);
+  if (!cvs) return;
+  var ctx = cvs.getContext('2d');
+  var w = cvs.width = cvs.offsetWidth;
+  var h = cvs.height = cvs.offsetHeight;
+  var min = Math.min.apply(Math, data);
+  var max = Math.max.apply(Math, data);
+  var range = max - min || 1;
+  ctx.clearRect(0, 0, w, h);
+  ctx.beginPath();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  for (var i = 0; i < data.length; i++) {
+    var x = (i / (data.length - 1)) * w;
+    var y = h - ((data[i] - min) / range) * (h - 8) - 4;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  var g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, color + '30');
+  g.addColorStop(1, color + '05');
+  ctx.fillStyle = g;
+  ctx.fill();
+}
+
+// ===== RENDER MARKET =====
+function renderMarket() {
+  var m = [
+    {n: 'Dow', v: '52,900', c: 1.1},
+    {n: 'S&P 500', v: '7,483', c: 0.0},
+    {n: 'Nasdaq', v: '25,833', c: -0.8},
+    {n: 'VIX', v: '15.97', c: -1.1}
+  ];
+  var html = '';
+  for (var i = 0; i < m.length; i++) {
+    var x = m[i];
+    var cl = x.c >= 0 ? 'up' : 'down';
+    var em = x.c >= 0 ? '&#x25B2;' : '&#x25BC;';
+    html += '<div class="market-chip"><div class="label">' + x.n + '</div><div class="value">' + x.v + '</div><div class="change ' + cl + '">' + em + ' ' + Math.abs(x.c) + '%</div></div>';
+  }
+  document.getElementById('marketScroll').innerHTML = html;
+}
+
+// ===== RENDER PORTFOLIO =====
+function renderPortfolio() {
+  var el = document.getElementById('portfolioCards');
+  if (portfolio.length === 0) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">&#x1F4C8;</div><div>Your portfolio is empty. Tap + to add stocks.</div></div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < portfolio.length; i++) {
+    var t = portfolio[i];
+    var s = stockData[t];
+    if (!s) continue;
+    var up = s.change_pct >= 0;
+    var color = getLogoColor(t);
+    var rc = getRecClass(s.recommendation);
+    var rsiColor = s.rsi > 70 ? '#f85149' : s.rsi < 30 ? '#3fb950' : '#8b949e';
+    var upside = ((s.target_mean - s.price) / s.price * 100).toFixed(1);
+    var rangeColor = s['52w_position'] > 80 ? '#f85149' : s['52w_position'] < 20 ? '#3fb950' : '#1f6feb';
+
+    html += '<div class="stock-card" data-ticker="' + t + '">' +
+      '<div class="stock-top">' +
+        '<div class="stock-left"><div class="stock-logo" style="background:' + color + '">' + t + '</div>' +
+        '<div class="stock-name"><div class="ticker">' + t + '</div><div class="sub">' + s.name + '</div></div></div>' +
+        '<div class="stock-right"><div class="price">$' + s.price.toFixed(2) + '</div>' +
+        '<div class="pct ' + (up ? 'up' : 'down') + '">' + (up ? '+' : '') + s.change_pct + '%</div></div></div>' +
+      '<div class="stock-chart"><canvas id="chart-' + t + '"></canvas></div>' +
+      '<div class="stock-metrics">' +
+        '<div><div class="m-label">RSI</div><div class="m-value" style="color:' + rsiColor + '">' + s.rsi + '</div></div>' +
+        '<div><div class="m-label">P/E</div><div class="m-value">' + (s.pe_trailing || 'N/A') + '</div></div>' +
+        '<div><div class="m-label">Target</div><div class="m-value" style="color:' + (upside > 0 ? '#3fb950' : '#f85149') + '">' + (upside > 0 ? '+' : '') + upside + '%</div></div></div>' +
+      '<div class="range-wrap"><div class="range-top"><span>52W Range</span><span>' + s['52w_position'] + '%</span></div>' +
+        '<div class="range-bar"><div class="range-fill" style="width:' + s['52w_position'] + '%;background:' + rangeColor + '"></div></div>' +
+        '<div class="range-bot"><span>$' + s['52w_low'] + '</span><span>$' + s['52w_high'] + '</span></div></div>' +
+      '<div class="stock-footer"><span class="rec-badge ' + rc + '">' + s.recommendation + '</span>' +
+        '<span style="font-size:11px;color:var(--text-dim)">' + s.analyst_count + ' analysts</span>' +
+        '<button class="remove-btn" data-remove="' + t + '">Remove</button></div></div>';
+  }
+  el.innerHTML = html;
+
+  // Attach remove button listeners
+  var removeBtns = document.querySelectorAll('.remove-btn[data-remove]');
+  for (var j = 0; j < removeBtns.length; j++) {
+    removeBtns[j].addEventListener('click', function(e) {
+      e.stopPropagation();
+      var ticker = this.getAttribute('data-remove');
+      removeStock(ticker);
+    });
+  }
+
+  // Draw charts after DOM update
+  setTimeout(function() {
+    for (var k = 0; k < portfolio.length; k++) {
+      var st = stockData[portfolio[k]];
+      if (st) drawChart('chart-' + portfolio[k], st.history, getLogoColor(portfolio[k]));
+    }
+  }, 100);
+}
+
+// ===== RENDER SCREENER =====
+function renderScreener() {
+  var el = document.getElementById('screenerList');
+  var filterVal = document.getElementById('screenerFilter').value.toLowerCase();
+  var html = '';
+  for (var i = 0; i < screenerUniverse.length; i++) {
+    var s = screenerUniverse[i];
+    if (filterVal && !s.ticker.toLowerCase().includes(filterVal) && !s.name.toLowerCase().includes(filterVal)) continue;
+    var up = s.change >= 0;
+    var color = getLogoColor(s.ticker);
+    html += '<div class="screener-row" data-screener-ticker="' + s.ticker + '">' +
+      '<div class="scr-logo" style="background:' + color + '">' + s.ticker + '</div>' +
+      '<div class="scr-info"><div class="scr-name">' + s.name + '</div>' +
+      '<div class="scr-sub">' + s.sector + ' &#x00B7; P/E ' + s.pe + ' &#x00B7; RSI ' + s.rsi + '</div></div>' +
+      '<div class="scr-price"><div class="p">$' + s.price.toFixed(2) + '</div>' +
+      '<div class="c ' + (up ? 'up' : 'down') + '">' + (up ? '+' : '') + s.change + '%</div></div></div>';
+  }
+  el.innerHTML = html;
+
+  // Attach click listeners
+  var rows = document.querySelectorAll('.screener-row[data-screener-ticker]');
+  for (var j = 0; j < rows.length; j++) {
+    rows[j].addEventListener('click', function() {
+      var ticker = this.getAttribute('data-screener-ticker');
+      if (portfolio.indexOf(ticker) === -1) {
+        addToPortfolio(ticker);
+      }
+    });
+  }
+}
+
+// ===== RENDER NEWS =====
+function renderNews() {
+  var el = document.getElementById('newsList');
+  var pos = 0, neu = 0, neg = 0;
+  for (var i = 0; i < currentNews.length; i++) {
+    if (currentNews[i].sentiment === 'positive') pos++;
+    else if (currentNews[i].sentiment === 'neutral') neu++;
+    else neg++;
+  }
+
+  document.getElementById('sentimentRow').innerHTML =
+    '<div class="sent-pill"><div class="num" style="color:#3fb950">' + pos + '</div><div class="lab">Positive</div></div>' +
+    '<div class="sent-pill"><div class="num" style="color:#8b949e">' + neu + '</div><div class="lab">Neutral</div></div>' +
+    '<div class="sent-pill"><div class="num" style="color:#f85149">' + neg + '</div><div class="lab">Negative</div></div>' +
+    '<div class="sent-pill"><div class="num" style="color:#1f6feb">' + currentNews.length + '</div><div class="lab">Total</div></div>';
+
+  var html = '';
+  for (var j = 0; j < currentNews.length; j++) {
+    var n = currentNews[j];
+    var sc = n.sentiment === 'positive' ? '#3fb950' : n.sentiment === 'negative' ? '#f85149' : '#8b949e';
+    var tags = '';
+    for (var k = 0; k < n.tickers.length; k++) {
+      tags += '<span class="news-tag">' + n.tickers[k] + '</span>';
+    }
+    html += '<div class="news-item" style="border-left:3px solid ' + sc + '">' +
+      '<div class="news-title">' + n.title + '</div>' +
+      '<div class="news-meta">' + tags + '<span class="news-src">' + n.source + ' &#x00B7; ' + n.time + '</span>' +
+      '<span class="news-impact" style="color:' + sc + '">' + n.impact + '</span></div></div>';
+  }
+  el.innerHTML = html;
+}
+
+function refreshNewsMobile() {
+  var btn = document.getElementById('refreshNewsBtn');
+  var spin = document.getElementById('newsSpin');
+  btn.classList.add('spinning');
+  btn.disabled = true;
+  spin.style.animation = 'spin 1s linear infinite';
+  btn.innerHTML = '<span class="spin" style="animation:spin 1s linear infinite">&#x1F504;</span> Refreshing...';
+
+  setTimeout(function() {
+    currentNews.unshift({
+      title: 'Breaking: Fed Signals Potential Rate Cut in September',
+      source: 'Reuters',
+      time: 'Just now',
+      impact: 'Bullish for growth',
+      sentiment: 'positive',
+      tickers: ['AAPL', 'NVDA', 'TSLA']
+    });
+    if (currentNews.length > 20) currentNews.pop();
+    renderNews();
+    btn.classList.remove('spinning');
+    btn.disabled = false;
+    spin.style.animation = '';
+    btn.innerHTML = '<span class="spin">&#x1F504;</span> Refresh News';
+  }, 1500);
+}
+
+// ===== RENDER ALERTS =====
+function renderAlerts() {
+  var alerts = [
+    {icon: '&#x1F4B0;', bg: 'rgba(31,111,235,.15)', title: 'NVDA RSI Oversold', desc: 'RSI at 33.5 &#x2014; potential bounce zone. Consider accumulating.', time: 'Now'},
+    {icon: '&#x1F4CA;', bg: 'rgba(210,153,34,.15)', title: 'TSLA Volume Low', desc: '30% below average &#x2014; weak conviction in price action.', time: 'Now'},
+    {icon: '&#x1F4F0;', bg: 'rgba(139,148,158,.15)', title: 'Fed Meeting Looms', desc: 'July FOMC approaching. Only 18% hike chance per CME.', time: 'Jul 2'},
+    {icon: '&#x1F4B0;', bg: 'rgba(31,111,235,.15)', title: 'AAPL Near 52W High', desc: 'At 87.5% of range. Consider partial profit-taking.', time: 'Now'},
+    {icon: '&#x1F4CA;', bg: 'rgba(210,153,34,.15)', title: 'Tech Rotation', desc: 'Dow hits record while Nasdaq falls &#x2014; value over growth.', time: 'Jul 2'},
+    {icon: '&#x1F4F0;', bg: 'rgba(139,148,158,.15)', title: 'TSLA Q2 Beat', desc: '480K+ deliveries vs 400K expected. Stock down -4%.', time: 'Jul 2'}
+  ];
+
+  var html = '';
+  for (var i = 0; i < alerts.length; i++) {
+    var a = alerts[i];
+    html += '<div class="alert-row"><div class="alert-icon" style="background:' + a.bg + '">' + a.icon + '</div>' +
+      '<div class="alert-info"><div class="alert-title">' + a.title + '</div>' +
+      '<div class="alert-desc">' + a.desc + '</div></div>' +
+      '<div class="alert-time">' + a.time + '</div></div>';
+  }
+  document.getElementById('alertsList').innerHTML = html;
+  document.getElementById('alertCount').textContent = alerts.length;
+}
+
+// ===== NAVIGATION =====
+function switchPanel(panelName) {
+  console.log('[StockDash] Switching to panel: ' + panelName);
+  currentPanel = panelName;
+
+  var panels = document.querySelectorAll('.panel');
+  for (var i = 0; i < panels.length; i++) {
+    panels[i].classList.remove('active');
+  }
+  var target = document.getElementById('panel-' + panelName);
+  if (target) target.classList.add('active');
+
+  var navBtns = document.querySelectorAll('.nav-btn');
+  for (var j = 0; j < navBtns.length; j++) {
+    navBtns[j].classList.toggle('active', navBtns[j].getAttribute('data-panel') === panelName);
+  }
+
+  var fab = document.getElementById('fabBtn');
+  if (fab) fab.style.display = panelName === 'portfolio' ? 'flex' : 'none';
+
+  if (panelName === 'screener') renderScreener();
+  if (panelName === 'news') renderNews();
+  if (panelName === 'alerts') renderAlerts();
+}
+
+// ===== ADD STOCK =====
+function openAddModal() {
+  document.getElementById('addModal').classList.add('active');
+  document.getElementById('addTickerInput').focus();
+}
+
+function closeAddModal() {
+  document.getElementById('addModal').classList.remove('active');
+}
+
+function confirmAddStock() {
+  var input = document.getElementById('addTickerInput');
+  var t = input.value.toUpperCase().trim();
+  if (!t) return;
+
+  if (stockData[t] && portfolio.indexOf(t) === -1) {
+    portfolio.push(t);
+    renderPortfolio();
+    input.value = '';
+    closeAddModal();
+  } else if (portfolio.indexOf(t) !== -1) {
+    alert(t + ' already in portfolio');
+  } else {
+    alert(t + ' not available in demo. Try AAPL, NVDA, TSLA.');
+  }
+}
+
+function removeStock(t) {
+  var newPortfolio = [];
+  for (var i = 0; i < portfolio.length; i++) {
+    if (portfolio[i] !== t) newPortfolio.push(portfolio[i]);
+  }
+  portfolio = newPortfolio;
+  renderPortfolio();
+}
+
+function addToPortfolio(t) {
+  if (portfolio.indexOf(t) === -1) {
+    portfolio.push(t);
+    switchPanel('portfolio');
+    renderPortfolio();
+  }
+}
+
+// ===== EVENT LISTENERS =====
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('[StockDash] DOM loaded, attaching event listeners...');
+
+  // Nav buttons
+  var navBtns = document.querySelectorAll('.nav-btn');
+  for (var i = 0; i < navBtns.length; i++) {
+    navBtns[i].addEventListener('click', function() {
+      var panel = this.getAttribute('data-panel');
+      switchPanel(panel);
+    });
+  }
+
+  // FAB (add stock button)
+  document.getElementById('fabBtn').addEventListener('click', openAddModal);
+
+  // Modal close on backdrop click
+  document.getElementById('addModal').addEventListener('click', function(e) {
+    if (e.target === this) closeAddModal();
+  });
+
+  // Confirm add button
+  document.getElementById('confirmAddBtn').addEventListener('click', confirmAddStock);
+
+  // Enter key in add input
+  document.getElementById('addTickerInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') confirmAddStock();
+  });
+
+  // Screener filter
+  document.getElementById('screenerFilter').addEventListener('input', renderScreener);
+
+  // Refresh news button
+  document.getElementById('refreshNewsBtn').addEventListener('click', refreshNewsMobile);
+
+  // Set header date
+  document.getElementById('headerTime').textContent = new Date().toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric'
+  });
+
+  // Initial render
+  console.log('[StockDash] Rendering initial content...');
+  renderMarket();
+  renderPortfolio();
+  renderNews();
+  renderAlerts();
+
+  console.log('[StockDash] App ready!');
+});
+
+// Handle window resize for charts
+window.addEventListener('resize', function() {
+  for (var i = 0; i < portfolio.length; i++) {
+    var s = stockData[portfolio[i]];
+    if (s) drawChart('chart-' + portfolio[i], s.history, getLogoColor(portfolio[i]));
+  }
+});
+</script>
+</body>
+</html>
